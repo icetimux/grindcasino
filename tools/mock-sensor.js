@@ -11,8 +11,8 @@ function createMockSensor(options = {}) {
 		onImpact,
 		logger = console,
 		sensorCount = 3,
-		minDelayMs = 700,
-		maxDelayMs = 2200,
+		minDelayMs = 5000,
+		maxDelayMs = 6000,
 		minIntensity = 0.15,
 		maxIntensity = 1,
 	} = options;

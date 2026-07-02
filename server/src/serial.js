@@ -45,6 +45,21 @@ function parseSerialLine(rawLine) {
 		}
 	}
 
+	if (line === "IMPACT") {
+		return createImpactEvent({ intensity: 1, sensor: 1 });
+	}
+
+	if (line.startsWith("IMPACT:")) {
+		const payload = line.slice(7).split(",").map((value) => value.trim());
+		const intensity = Number(payload[0]);
+		const sensor = Number(payload[1]);
+
+		return createImpactEvent({
+			intensity: Number.isFinite(intensity) ? intensity : 1,
+			sensor: Number.isFinite(sensor) ? sensor : 1,
+		});
+	}
+
 	return null;
 }
 

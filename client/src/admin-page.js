@@ -5,15 +5,28 @@
   const autoStopMs = window.SlotMachineCore.constants.AUTO_STOP_MS;
 
   const forceBtn = document.getElementById("forceBtn");
+  const startBtn = document.getElementById("startBtn");
+  const stopBtn = document.getElementById("stopBtn");
   const countdownEl = document.getElementById("countdown");
   const eventStatusEl = document.getElementById("eventStatus");
 
   let autoStopTimer = null;
   let countdownInterval = null;
+  let startRequested = false;
 
   function updateEventStatus(text) {
     if (eventStatusEl) {
       eventStatusEl.textContent = text;
+    }
+  }
+
+  function setStartEnabled(enabled) {
+    if (startBtn) {
+      startBtn.disabled = !enabled;
+    }
+
+    if (enabled) {
+      startRequested = false;
     }
   }
 
@@ -77,6 +90,7 @@
   function startSpinLocally() {
     stopAutoStopTimer();
     machine.startSpin();
+    setStartEnabled(false);
     startCountdown();
     autoStopTimer = setTimeout(() => {
       autoStopTimer = null;
@@ -88,12 +102,14 @@
     stopAutoStopTimer();
     clearCountdown();
     machine.scheduleStopsFromIndices(result);
+    setStartEnabled(true);
   }
 
   function stopLocallyBySymbols(symbolNums) {
     stopAutoStopTimer();
     clearCountdown();
     machine.scheduleStopsFromSymbolNums(symbolNums);
+    setStartEnabled(true);
   }
 
   const wsClient = window.SlotMachineCore.connectWebSocket({
@@ -103,6 +119,7 @@
 
       if (type === "spin:start") {
         if (!machine.isSpinning()) {
+          startRequested = false;
           startSpinLocally();
         }
       } else if (type === "spin:stop") {
@@ -134,24 +151,25 @@
   });
 
   function start() {
-    startSpinLocally();
+    if (machine.isSpinning() || startRequested) {
+      return;
+    }
+
+    startRequested = true;
+    setStartEnabled(false);
     wsClient.send({ type: "spin:start" });
   }
 
   function stopRandom() {
+    if (!machine.isSpinning()) {
+      return;
+    }
+
     const result = machine.randomResult();
-    stopLocally(result);
     wsClient.send({ type: "spin:stop", result });
   }
 
   function forceStop() {
-    stopAutoStopTimer();
-    clearCountdown();
-
-    if (forceBtn) {
-      forceBtn.disabled = true;
-    }
-
     const symbolNums = [
       +document.getElementById("a").value || 1,
       +document.getElementById("b").value || 1,
@@ -159,13 +177,12 @@
     ];
 
     if (machine.isSpinning()) {
-      stopLocallyBySymbols(symbolNums);
+      if (forceBtn) {
+        forceBtn.disabled = true;
+      }
       wsClient.send({ type: "spin:force", symbolNums });
     }
   }
-
-  const startBtn = document.getElementById("startBtn");
-  const stopBtn = document.getElementById("stopBtn");
 
   if (startBtn) {
     startBtn.addEventListener("click", start);
@@ -178,4 +195,6 @@
   if (forceBtn) {
     forceBtn.addEventListener("click", forceStop);
   }
+
+  setStartEnabled(true);
 })();

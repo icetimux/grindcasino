@@ -4,7 +4,7 @@ const { WebSocketServer } = require("ws");
 const { normalizeMessage } = require("../../shared/protocol");
 
 function createWebSocketBridge(httpServer, options = {}) {
-	const { logger = console } = options;
+	const { logger = console, handleMessage } = options;
 	const wss = new WebSocketServer({ noServer: true });
 	let isClosed = false;
 
@@ -41,7 +41,19 @@ function createWebSocketBridge(httpServer, options = {}) {
 					return;
 				}
 
-				broadcast(message);
+				const nextMessages = typeof handleMessage === "function"
+					? handleMessage(message, { source: "ws" })
+					: [message];
+
+				if (!nextMessages) {
+					return;
+				}
+
+				(nextMessages || []).forEach((nextMessage) => {
+					if (nextMessage) {
+						broadcast(nextMessage);
+					}
+				});
 			} catch (error) {
 				logger.warn("[WS] bad message", raw.toString().slice(0, 80));
 			}
