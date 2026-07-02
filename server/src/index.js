@@ -6,13 +6,21 @@ const path = require("path");
 
 const { createWebSocketBridge } = require("./websocket");
 const { startSerialBridge } = require("./serial");
-const { createSpinStartEvent, MESSAGE_TYPES, normalizeMessage } = require("../../shared/protocol");
+const { createSpinStartEvent, createSpinStopEvent, MESSAGE_TYPES, normalizeMessage } = require("../../shared/protocol");
 
 const PORT = Number.parseInt(process.env.PORT || "8080", 10);
 const CLIENT_ROOT = path.resolve(__dirname, "../../client");
 const IMPACT_DEBOUNCE_MS = Number.parseInt(process.env.IMPACT_DEBOUNCE_MS || "1200", 10);
 const SPIN_STATE_TIMEOUT_MS = Number.parseInt(process.env.SPIN_STATE_TIMEOUT_MS || "4000", 10);
 const SPIN_COOLDOWN_MS = Number.parseInt(process.env.SPIN_COOLDOWN_MS || "3000", 10);
+const IMPACT_MIN_INTENSITY = Number.parseInt(process.env.IMPACT_MIN_INTENSITY || "800", 10);
+const IMPACT_MAX_INTENSITY = Number.parseInt(process.env.IMPACT_MAX_INTENSITY || "4095", 10);
+
+const STRIP_COUNT = 30;
+
+function randomStripIndex() {
+	return Math.floor(Math.random() * STRIP_COUNT);
+}
 
 let isSpinning = false;
 let lastImpactAt = 0;
@@ -30,8 +38,15 @@ function markSpinning() {
 	isSpinning = true;
 	clearSpinStateTimer();
 	spinStateTimer = setTimeout(() => {
-		isSpinning = false;
 		spinStateTimer = null;
+		// Spin duration elapsed with no admin stop/force: the server auto-stops so
+		// display clients halt even when no admin panel is open.
+		markStopped();
+		const stopEvent = createSpinStopEvent({
+			source: "server-timeout",
+			result: [randomStripIndex(), randomStripIndex(), randomStripIndex()],
+		});
+		websocketBridge.broadcast(stopEvent);
 	}, SPIN_STATE_TIMEOUT_MS);
 }
 
@@ -120,6 +135,15 @@ function processMessage(message) {
 	const now = Date.now();
 
 	if (type === MESSAGE_TYPES.IMPACT) {
+		const intensity = Number(normalized.intensity ?? 0);
+
+		// Accept only impacts inside the configured range. Everything else
+		// (noise, taps that are too soft, or spurious over-range values) is
+		// silently dropped so the firmware can stream freely.
+		if (intensity < IMPACT_MIN_INTENSITY || intensity > IMPACT_MAX_INTENSITY) {
+			return [];
+		}
+
 		if (isSpinning) {
 			return [];
 		}
@@ -133,7 +157,7 @@ function processMessage(message) {
 		}
 
 		lastImpactAt = now;
-		console.log(`[Impact] accepted sensor=${normalized.sensor ?? "?"} intensity=${Number(normalized.intensity ?? 0).toFixed(2)}`);
+		console.log(`[Impact] accepted sensor=${normalized.sensor ?? "?"} intensity=${intensity.toFixed(2)}`);
 		markSpinning();
 		return [normalized, createSpinStartEvent({ source: "impact" })];
 	}
@@ -152,10 +176,9 @@ function processMessage(message) {
 	}
 
 	if (type === MESSAGE_TYPES.SPIN_STOP || type === MESSAGE_TYPES.SPIN_FORCE) {
-		if (!isSpinning && now < cooldownUntil) {
-			return [];
-		}
-
+        // if (!isSpinning && now < cooldownUntil) {
+		// 	return [];
+		// }
 		markStopped();
 		return [normalized];
 	}

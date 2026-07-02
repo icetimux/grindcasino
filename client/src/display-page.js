@@ -20,11 +20,11 @@
           machine.startSpin();
         }
       } else if (type === "spin:stop") {
-        if (machine.isSpinning()) {
+        if (machine.isSpinning() && !machine.hasPendingResult()) {
           machine.scheduleStopsFromIndices(message.result || []);
         }
       } else if (type === "spin:force") {
-        if (machine.isSpinning()) {
+        if (machine.isSpinning() && !machine.hasPendingResult()) {
           machine.scheduleStopsFromSymbolNums(message.symbolNums || []);
         }
       } else if (type === "impact") {

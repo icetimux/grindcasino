@@ -63,13 +63,56 @@ function parseSerialLine(rawLine) {
 	return null;
 }
 
+async function resolveSerialPath(logger) {
+	const explicit = process.env.SERIAL_PATH || "";
+	if (explicit) {
+		return explicit;
+	}
+
+	try {
+		const { SerialPort } = require("serialport");
+		const ports = await SerialPort.list();
+
+		const candidates = ports.filter((port) => {
+			const portPath = port.path || "";
+			const looksUsb =
+				Boolean(port.vendorId) ||
+				/usbserial|wchusbserial|slab_usbtouart|ttyusb|ttyacm|cu\.usb/i.test(portPath);
+			const isNoise = /bluetooth|debug-console|wlan/i.test(portPath);
+			return looksUsb && !isNoise;
+		});
+
+		if (candidates.length === 1) {
+			logger.log(`[Serial] auto-detected device: ${candidates[0].path}`);
+			return candidates[0].path;
+		}
+
+		if (candidates.length > 1) {
+			logger.warn(
+				`[Serial] multiple devices found, using first (set SERIAL_PATH to override): ${candidates
+					.map((port) => port.path)
+					.join(", ")}`
+			);
+			return candidates[0].path;
+		}
+	} catch (error) {
+		logger.warn(`[Serial] port detection failed: ${error.message}`);
+	}
+
+	return "";
+}
+
 function startSerialBridge(options = {}) {
 	const { broadcast, logger = console } = options;
 	const stopHandlers = [];
-	const serialPath = process.env.SERIAL_PATH || "";
 	const useMockSensor = String(process.env.USE_MOCK_SENSOR || "").toLowerCase() === "true";
+	let closed = false;
 
-	if (serialPath) {
+	function openSerialPort(serialPath) {
+		if (closed) {
+			return;
+		}
+
 		try {
 			const { SerialPort } = require("serialport");
 			const { ReadlineParser } = require("@serialport/parser-readline");
@@ -111,13 +154,18 @@ function startSerialBridge(options = {}) {
 		});
 
 		stopHandlers.push(stopMockSensor);
-	}
-
-	if (!serialPath && !useMockSensor) {
-		logger.log("[Serial] disabled — set SERIAL_PATH or USE_MOCK_SENSOR=true");
+	} else {
+		resolveSerialPath(logger).then((serialPath) => {
+			if (!serialPath) {
+				logger.log("[Serial] no device found — set SERIAL_PATH or USE_MOCK_SENSOR=true");
+				return;
+			}
+			openSerialPort(serialPath);
+		});
 	}
 
 	return function stopSerialBridge() {
+		closed = true;
 		while (stopHandlers.length > 0) {
 			const stop = stopHandlers.pop();
 			if (typeof stop === "function") {

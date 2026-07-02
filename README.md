@@ -52,15 +52,35 @@ USE_MOCK_SENSOR=true IMPACT_DEBOUNCE_MS=1200 SPIN_STATE_TIMEOUT_MS=4000 SPIN_COO
 
 ## Serial settings
 
-Set the serial device path and baud rate with environment variables:
+If a single ESP32 is connected over USB, the server auto-detects the serial port
+— you do not need to set `SERIAL_PATH`. You can still pin it explicitly:
 
 ```bash
 cd server
 SERIAL_PATH=/dev/tty.usbserial-XXXX BAUD_RATE=115200 npm start
 ```
 
-- `SERIAL_PATH` enables the physical serial bridge.
+- `SERIAL_PATH` optional. If unset (and mock mode is off), the server auto-detects the only USB serial device.
 - `BAUD_RATE` defaults to `115200` if you do not set it.
+
+## Firmware
+
+The ESP32 firmware in `firmware/grindcasino.ino` is intentionally "dumb": it only
+senses piezo impacts and streams the raw readings over USB serial. The server
+decides which readings are strong enough to accept.
+
+Each reading is sent on its own line:
+
+```
+IMPACT:<raw>,<sensor>
+```
+
+- `<raw>` is the 12-bit ESP32 ADC value (`0-4095`). Higher = harder impact.
+- `<sensor>` is `1` or `2` (piezo 1 on `A0`, piezo 2 on `A1`).
+
+The firmware only applies a tiny `NOISE_FLOOR` so it does not flood the serial
+link with idle readings. Tune the real accept range on the server with
+`IMPACT_MIN_INTENSITY` / `IMPACT_MAX_INTENSITY`.
 
 ## Environment flags
 
@@ -73,16 +93,22 @@ These are the main runtime flags supported by the server:
 	- Enables fake impact events instead of requiring physical hardware.
 	- Default: disabled
 - `SERIAL_PATH`
-	- Serial device path for the hardware connection.
+	- Serial device path for the hardware connection. Optional — auto-detected when a single USB serial device is present.
 	- Example: `/dev/tty.usbserial-XXXX`
 - `BAUD_RATE`
 	- Serial baud rate.
 	- Default: `115200`
+- `IMPACT_MIN_INTENSITY`
+	- Minimum raw ADC value (`0-4095`) the server accepts as a real hit. Impacts below this are ignored.
+	- Default: `800`
+- `IMPACT_MAX_INTENSITY`
+	- Maximum raw ADC value the server accepts. Impacts above this are ignored (over-range/noise rejection).
+	- Default: `4095`
 - `IMPACT_DEBOUNCE_MS`
 	- Minimum time between accepted impact events.
 	- Default: `1200`
 - `SPIN_STATE_TIMEOUT_MS`
-	- Server-side fallback timeout for clearing spin state if no stop/force message arrives.
+	- Spin duration. When it elapses with no admin stop/force, the server auto-broadcasts a `spin:stop` (with a random result) so display clients halt on their own.
 	- Default: `4000`
 - `SPIN_COOLDOWN_MS`
 	- Cooldown period after `spin:stop` or `spin:force` before the server accepts a new start.
@@ -92,6 +118,6 @@ Example with everything together:
 
 ```bash
 cd server
-PORT=8080 SERIAL_PATH=/dev/tty.usbserial-XXXX BAUD_RATE=115200 IMPACT_DEBOUNCE_MS=1200 SPIN_STATE_TIMEOUT_MS=4000 SPIN_COOLDOWN_MS=3000 npm start
+PORT=8080 SERIAL_PATH=/dev/tty.usbserial-XXXX BAUD_RATE=115200 IMPACT_MIN_INTENSITY=800 IMPACT_MAX_INTENSITY=4095 IMPACT_DEBOUNCE_MS=1200 SPIN_STATE_TIMEOUT_MS=4000 SPIN_COOLDOWN_MS=3000 npm start
 ```
 

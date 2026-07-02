@@ -10,11 +10,11 @@ function createMockSensor(options = {}) {
 	const {
 		onImpact,
 		logger = console,
-		sensorCount = 3,
+		sensorCount = 2,
 		minDelayMs = 5000,
 		maxDelayMs = 6000,
-		minIntensity = 0.15,
-		maxIntensity = 1,
+		minIntensity = 1000,
+		maxIntensity = 4000,
 	} = options;
 
 	let active = true;
@@ -35,9 +35,7 @@ function createMockSensor(options = {}) {
 		}
 
 		const sensor = randomInt(1, Math.max(1, sensorCount));
-		const intensity = Number(
-			(minIntensity + Math.random() * (maxIntensity - minIntensity)).toFixed(2)
-		);
+		const intensity = Math.round(minIntensity + Math.random() * (maxIntensity - minIntensity));
 		const event = createImpactEvent({ intensity, sensor });
 
 		if (logger && typeof logger.log === "function") {
