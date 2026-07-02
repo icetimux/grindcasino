@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8" />
+<title>Slot Machine</title>
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js"></script>
+<style>
+body {
+  background:#111;
+  color:white;
+  font-family:sans-serif;
+  text-align:center;
+}
+
+.machine {
+  display:flex;
+  justify-content:center;
+  gap:20px;
+  margin:20px 0 40px;
+}
+
+.reel {
+  width:130px;
+  height:360px;
+  overflow:hidden;
+  border-radius:14px;
+  border:2px solid #444;
+  background:#222;
+  position:relative;
+}
+
+.strip {
+  position:absolute;
+  width:100%;
+  top:0;
+  left:0;
+  will-change: transform;
+}
+
+.symbol {
+  height:120px;
+  display:flex;
+  justify-content:center;
+  align-items:center;
+  font-size:3rem;
+}
+
+button, input {
+  margin:5px;
+  padding:8px;
+  width:60px;
+  text-align:center;
+}
+
+#forceBtn {
+  background: green;
+  color: white;
+  border-color: darkgreen;
+}
+
+#forceBtn:disabled {
+  background: #444;
+  color: #888;
+  border-color: #555;
+  cursor: not-allowed;
+}
+
+#forceBtn.urgent {
+  background: red;
+  color: white;
+  border-color: red;
+}
+
+#eventStatus, #wsStatus {
+  font-size: 0.75rem;
+  opacity: 0.45;
+}
+</style>
+</head>
+
+<body>
+
+<div class="machine">
+  <div class="reel"><div class="strip" id="r0"></div></div>
+  <div class="reel"><div class="strip" id="r1"></div></div>
+  <div class="reel"><div class="strip" id="r2"></div></div>
+</div>
+
+<div>
+  <button onclick="start()">Start</button>
+  <button onclick="stopRandom()">Stop</button>
+</div>
+
+<div>
+  <input id="a" placeholder="1-6">
+  <input id="b" placeholder="1-6">
+  <input id="c" placeholder="1-6">
+  <button id="forceBtn" onclick="forceStop()">Force</button>
+</div>
+<div style="font-size:11px;opacity:0.5;margin-bottom:8px">
+  1=🍒 Cherry &nbsp; 2=🔔 Bell &nbsp; 3=⭐ Star &nbsp; 4=💎 Diamond &nbsp; 5=🟡 Bonus &nbsp; 6=🔴 Jackpot
+</div>
+<div id="countdown" style="font-size:3.5rem;font-weight:bold;min-height:4.5rem;letter-spacing:4px">0.0s</div>
+<div id="eventStatus">Last event: none</div>
+<div style="font-size:0.75rem;opacity:0.4;margin-top:4px"><span id="wsStatus">⚫ WS</span></div>
+
+<script>
+const REEL_STRIP = [
+  "🍒","🔔","🍒","⭐","🍒","🔔","🍒","💎","🍒","⭐",
+  "🍒","🔔","🍒","🟡","🍒","⭐","🔔","💎","🍒","🟡",
+  "🍒","⭐","🔔","🍒","💎","🟡","🔔","🍒","⭐","🔴"
+];
+const COUNT = REEL_STRIP.length;
+const H = 120;
+const LOOP_HEIGHT = COUNT * H;
+const BASE_SPEED = 90;
+const SPIN_PX_PER_MS = BASE_SPEED / (1000 / 60);
+const MIN_FWD = H * 6;
+const STOP_GAP_MS = 350;
+const AUTO_STOP_MS = 4000;
+
+const SYMBOL_MAP = { 1: "🍒", 2: "🔔", 3: "⭐", 4: "💎", 5: "🟡", 6: "🔴" };
+const symbolOccurrences = {};
+REEL_STRIP.forEach((symbol, index) => {
+  if (!symbolOccurrences[symbol]) symbolOccurrences[symbol] = [];
+  symbolOccurrences[symbol].push(index);
+});
+
+function symbolNumToIndex(n) {
+  const emoji = SYMBOL_MAP[Math.max(1, Math.min(6, n || 1))];
+  return symbolOccurrences[emoji][0];
+}
+
+let pendingResult = null;
+let stopQueue = [];
+let autoStopTimer = null;
+let countdownInterval = null;
+let rafId = null;
+let rafPrevNow = 0;
+
+function createReel() {
+  return {
+    y: 0,
+    phase: "idle",
+    spinStart: 0,
+    stopRequested: false,
+    targetIndex: 0,
+    stopStartY: 0,
+    stopBestFwd: 0,
+    stopStartTime: 0,
+    stopDuration: 0,
+  };
+}
+
+let reels = [createReel(), createReel(), createReel()];
+
+function build() {
+  ["r0", "r1", "r2"].forEach((id) => {
+    const el = document.getElementById(id);
+    el.innerHTML = "";
+    for (let repeat = 0; repeat < 3; repeat++) {
+      for (let index = 0; index < COUNT; index++) {
+        const symbol = document.createElement("div");
+        symbol.className = "symbol";
+        symbol.innerText = REEL_STRIP[index];
+        el.appendChild(symbol);
+      }
+    }
+  });
+}
+
+build();
+
+reels.forEach((reel, index) => {
+  reel.y = Math.floor(Math.random() * COUNT) * H;
+  gsap.set("#r" + index, { y: -reel.y });
+});
+
+function startCountdown() {
+  clearCountdown();
+  const el = document.getElementById("countdown");
+  const btn = document.getElementById("forceBtn");
+  const end = performance.now() + AUTO_STOP_MS;
+  el.textContent = "4.0s";
+  btn.disabled = false;
+  countdownInterval = setInterval(() => {
+    const remaining = Math.max(0, end - performance.now());
+    el.textContent = (remaining / 1000).toFixed(1) + "s";
+    const forceBtn = document.getElementById("forceBtn");
+    if (remaining <= 1000 && remaining > 0) {
+      forceBtn.classList.add("urgent");
+    } else {
+      forceBtn.classList.remove("urgent");
+    }
+    if (remaining <= 0) {
+      clearCountdown();
+      document.getElementById("forceBtn").disabled = true;
+    }
+  }, 100);
+}
+
+function clearCountdown() {
+  if (countdownInterval) { clearInterval(countdownInterval); countdownInterval = null; }
+  const el = document.getElementById("countdown");
+  if (el) el.textContent = "0.0s";
+  const forceBtn = document.getElementById("forceBtn");
+  if (forceBtn) forceBtn.classList.remove("urgent");
+}
+
+function updateEventStatus(text) {
+  const el = document.getElementById("eventStatus");
+  if (el) {
+    el.textContent = text;
+  }
+}
+
+function requestStopFor(index) {
+  const reel = reels[index];
+  if (!reel || reel.phase !== "spinning") return;
+  reel.targetIndex = pendingResult[index] % COUNT;
+  reel.stopRequested = true;
+}
+
+function engineStart() {
+  if (rafId !== null) { cancelAnimationFrame(rafId); rafId = null; }
+  rafPrevNow = 0;
+
+  const now = performance.now();
+  pendingResult = null;
+  stopQueue = [];
+  if (autoStopTimer) { clearTimeout(autoStopTimer); autoStopTimer = null; }
+  reels.forEach((reel) => {
+    reel.phase = "spinning";
+    reel.spinStart = now;
+    reel.stopRequested = false;
+  });
+
+  rafId = requestAnimationFrame(loop);
+  startCountdown();
+  autoStopTimer = setTimeout(() => { autoStopTimer = null; stopRandom(); }, AUTO_STOP_MS);
+}
+
+function start() {
+  engineStart();
+  wsSend({ type: "spin:start" });
+}
+
+function stopRandom() {
+  if (autoStopTimer) { clearTimeout(autoStopTimer); autoStopTimer = null; }
+  clearCountdown();
+  const result = [rand(), rand(), rand()];
+  scheduleStops(result);
+  wsSend({ type: "spin:stop", result });
+}
+
+function forceStop() {
+  if (autoStopTimer) { clearTimeout(autoStopTimer); autoStopTimer = null; }
+  clearCountdown();
+  document.getElementById("forceBtn").disabled = true;
+  const symbolNums = [
+    +document.getElementById("a").value || 1,
+    +document.getElementById("b").value || 1,
+    +document.getElementById("c").value || 1,
+  ];
+  if (reels.some((reel) => reel.phase === "spinning")) {
+    const result = symbolNums.map((value) => symbolNumToIndex(value));
+    scheduleStops(result);
+    wsSend({ type: "spin:force", symbolNums });
+  }
+}
+
+function scheduleStops(result) {
+  pendingResult = [...result];
+  stopQueue = [1, 2];
+  requestStopFor(0);
+}
+
+function loop(now = performance.now()) {
+  const dt = rafPrevNow > 0 ? Math.min(now - rafPrevNow, 50) : 1000 / 60;
+  rafPrevNow = now;
+
+  for (let index = 0; index < 3; index++) {
+    const reel = reels[index];
+
+    if (reel.phase === "spinning") {
+      const rampT = Math.min(1, (now - reel.spinStart) / 500);
+      reel.y += easeInOutQuad(rampT) * SPIN_PX_PER_MS * dt;
+      reel.y = ((reel.y % LOOP_HEIGHT) + LOOP_HEIGHT) % LOOP_HEIGHT;
+      gsap.set("#r" + index, { y: -reel.y });
+
+      if (reel.stopRequested) {
+        reel.stopRequested = false;
+
+        const occurrences = symbolOccurrences[REEL_STRIP[reel.targetIndex]];
+        let bestFwd = Infinity;
+        for (const occurrenceIndex of occurrences) {
+          const centreY = (((occurrenceIndex - 1) * H) % LOOP_HEIGHT + LOOP_HEIGHT) % LOOP_HEIGHT;
+          let fwd = (centreY - reel.y + LOOP_HEIGHT) % LOOP_HEIGHT;
+          if (fwd < MIN_FWD) fwd += LOOP_HEIGHT;
+          if (fwd < bestFwd) bestFwd = fwd;
+        }
+
+        const vStart = easeInOutQuad(Math.min(1, (now - reel.spinStart) / 500)) * SPIN_PX_PER_MS;
+        reel.phase = "stopping";
+        reel.stopStartY = reel.y;
+        reel.stopBestFwd = bestFwd;
+        reel.stopStartTime = now;
+        reel.stopDuration = 2 * bestFwd / vStart;
+      }
+    } else if (reel.phase === "stopping") {
+      const elapsed = now - reel.stopStartTime;
+      const progress = Math.min(1, elapsed / reel.stopDuration);
+      const eased = progress * (2 - progress);
+      const value = reel.stopStartY + reel.stopBestFwd * eased;
+      gsap.set("#r" + index, { y: -value });
+
+      if (progress >= 1) {
+        reel.y = ((value % LOOP_HEIGHT) + LOOP_HEIGHT) % LOOP_HEIGHT;
+        gsap.set("#r" + index, { y: -reel.y });
+        reel.phase = "stopped";
+        if (stopQueue.length > 0) {
+          const nextIndex = stopQueue.shift();
+          setTimeout(() => requestStopFor(nextIndex), STOP_GAP_MS);
+        }
+      }
+    }
+  }
+
+  rafId = requestAnimationFrame(loop);
+}
+
+function easeInOutQuad(t) {
+  return t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+}
+
+function rand() {
+  return Math.floor(Math.random() * COUNT);
+}
+
+let ws = null;
+
+function wsConnect() {
+  ws = new WebSocket(`ws://${location.host}`);
+  const statusEl = document.getElementById("wsStatus");
+
+  ws.onopen = () => { if (statusEl) statusEl.textContent = "🟢 WS"; };
+  ws.onclose = () => {
+    if (statusEl) statusEl.textContent = "🔴 WS";
+    setTimeout(wsConnect, 2000);
+  };
+  ws.onerror = () => {};
+
+  ws.onmessage = ({ data }) => {
+    try {
+      const msg = JSON.parse(data);
+      const type = msg.type || msg.cmd;
+
+      if (type === "spin:start") {
+        if (!reels.some((reel) => reel.phase === "spinning")) { engineStart(); }
+      } else if (type === "spin:stop") {
+        if (reels.some((reel) => reel.phase === "spinning") && pendingResult === null) {
+          if (autoStopTimer) { clearTimeout(autoStopTimer); autoStopTimer = null; }
+          clearCountdown();
+          const forceBtn = document.getElementById("forceBtn");
+          if (forceBtn) forceBtn.disabled = true;
+          scheduleStops(msg.result || []);
+        }
+      } else if (type === "spin:force") {
+        if (reels.some((reel) => reel.phase === "spinning") && pendingResult === null) {
+          if (autoStopTimer) { clearTimeout(autoStopTimer); autoStopTimer = null; }
+          clearCountdown();
+          const forceBtn = document.getElementById("forceBtn");
+          if (forceBtn) forceBtn.disabled = true;
+          const result = (msg.symbolNums || []).map((value) => symbolNumToIndex(value));
+          scheduleStops(result);
+        }
+      } else if (type === "impact") {
+        updateEventStatus(
+          `Last event: impact on sensor ${msg.sensor ?? "?"} intensity ${Number(msg.intensity ?? 0).toFixed(2)}`
+        );
+      }
+    } catch (error) {
+      updateEventStatus("Last event: invalid websocket payload");
+    }
+  };
+}
+
+function wsSend(data) {
+  if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(data));
+}
+
+wsConnect();
+</script>
+
+</body>
+</html>
