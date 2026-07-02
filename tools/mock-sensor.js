@@ -13,8 +13,8 @@ function createMockSensor(options = {}) {
 		sensorCount = 2,
 		minDelayMs = 5000,
 		maxDelayMs = 6000,
-		minIntensity = 1000,
-		maxIntensity = 4000,
+		minIntensity = 200,
+		maxIntensity = 400,
 	} = options;
 
 	let active = true;

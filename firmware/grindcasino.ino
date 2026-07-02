@@ -14,7 +14,7 @@ const int PIEZO_2 = A1;  // sensor 2 analog pin
 // Minimal hardware noise floor. This is NOT the accept threshold — it only
 // stops the serial link from flooding with idle/near-zero readings. Tune the
 // real accept range on the server, not here.
-const int NOISE_FLOOR = 40;
+const int NOISE_FLOOR = 15;
 
 // Sampling interval (ms). Small = fine-grained. 5ms ≈ 200 samples/sec/sensor.
 const int SAMPLE_INTERVAL_MS = 5;

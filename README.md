@@ -99,8 +99,8 @@ These are the main runtime flags supported by the server:
 	- Serial baud rate.
 	- Default: `115200`
 - `IMPACT_MIN_INTENSITY`
-	- Minimum raw ADC value (`0-4095`) the server accepts as a real hit. Impacts below this are ignored.
-	- Default: `800`
+	- Minimum raw ADC value (`0-4095`) the server accepts as a real hit. Impacts below this are ignored. Typical box readings land around `40-400`, so tune this to sit just below a real trick.
+	- Default: `150`
 - `IMPACT_MAX_INTENSITY`
 	- Maximum raw ADC value the server accepts. Impacts above this are ignored (over-range/noise rejection).
 	- Default: `4095`
