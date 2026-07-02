@@ -1,8 +1,32 @@
 (function initDisplayPage() {
   "use strict";
 
-  const machine = window.SlotMachineCore.createMachine();
+  const machine = window.SlotMachineCore.createMachine({
+    onSpinStart() {
+      if (window.SlotAudio) {
+        window.SlotAudio.playSpinStart();
+      }
+    },
+    onReelStopped(index, isLast) {
+      if (window.SlotAudio) {
+        window.SlotAudio.playReelStop();
+        if (isLast) {
+          window.SlotAudio.fadeOutSpin(200);
+        }
+      }
+    },
+    onResult(symbolIds, soundKey) {
+      if (window.SlotAudio && soundKey) {
+        // Wait a beat after the reels settle before the result sound.
+        setTimeout(() => window.SlotAudio.playWin(soundKey), 150);
+      }
+    },
+  });
   const eventStatusEl = document.getElementById("eventStatus");
+
+  // Load the reel setup from reels.json (falls back to the built-in default),
+  // then redraw the reels with it.
+  window.SlotMachineCore.loadSetup().then(() => machine.rebuild());
 
   function updateEventStatus(text) {
     if (eventStatusEl) {

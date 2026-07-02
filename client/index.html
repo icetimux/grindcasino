@@ -3,7 +3,8 @@
 <head>
 <meta charset="UTF-8" />
 <title>Slot Machine — Display</title>
-<script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js"></script>
+<script src="/public/dist/gsap.min.js"></script>
+<script src="/public/dist/howler.min.js"></script>
 <link rel="stylesheet" href="./src/styles/slot-machine.css" />
 </head>
 
@@ -15,10 +16,11 @@
 	<div class="reel"><div class="strip" id="r2"></div></div>
 </div>
 
-<div id="eventStatus">Last event: none</div>
+<div id="eventStatus" style="display: none;">Last event: none</div>
 <div id="wsStatus">⚫ WS</div>
 
 <script src="./src/slot-machine-core.js"></script>
+<script src="./src/audio.js"></script>
 <script src="./src/display-page.js"></script>
 
 </body>

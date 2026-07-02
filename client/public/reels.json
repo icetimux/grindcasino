@@ -1,0 +1,66 @@
+{
+  "activeSetup": "classic",
+  "setups": {
+    "classic": {
+      "name": "classic",
+      "symbols": [
+        { "id": 1, "label": "Cherry", "glyph": "🍒", "image": null },
+        { "id": 2, "label": "Bell", "glyph": "🔔", "image": null },
+        { "id": 3, "label": "Star", "glyph": "⭐", "image": null },
+        { "id": 4, "label": "Diamond", "glyph": "💎", "image": null },
+        { "id": 5, "label": "Bonus", "glyph": "🟡", "image": null },
+        { "id": 6, "label": "Jackpot", "glyph": "🔴", "image": null }
+      ],
+      "strip": [
+        1, 2, 1, 3, 1, 2, 1, 4, 1, 3,
+        1, 2, 1, 5, 1, 3, 2, 4, 1, 5,
+        1, 3, 2, 1, 4, 5, 2, 1, 3, 6
+      ],
+      "winRules": {
+        "default": "lose",
+        "rules": [
+          { "sound": "jackpot", "symbols": [6, 6, 6] },
+          { "sound": "bigwin", "symbols": [4, 4, 4] },
+          { "sound": "win", "symbols": [1, 1, 1] },
+          { "sound": "win", "symbols": [2, 2, 2] },
+          { "sound": "win", "symbols": [3, 3, 3] },
+          { "sound": "win", "symbols": [5, 5, 5] },
+          { "sound": "lose", "symbols": [1, 2, 3] },
+          { "sound": "lose", "symbols": [3, 4, 5] },
+          { "sound": "lose", "symbols": [2, 4, 6] }
+        ]
+      }
+    },
+
+    "images-example": {
+      "name": "images-example",
+      "symbols": [
+        { "id": 1, "label": "Cherry", "glyph": "🍒", "image": "/public/img/cherry.png" },
+        { "id": 2, "label": "Bell", "glyph": "🔔", "image": "/public/img/bell.png" },
+        { "id": 3, "label": "Star", "glyph": "⭐", "image": "/public/img/star.png" },
+        { "id": 4, "label": "Diamond", "glyph": "💎", "image": "/public/img/diamond.png" },
+        { "id": 5, "label": "Bonus", "glyph": "🟡", "image": "/public/img/bonus.png" },
+        { "id": 6, "label": "Jackpot", "glyph": "🔴", "image": "/public/img/jackpot.png" }
+      ],
+      "strip": [
+        1, 2, 1, 3, 1, 2, 1, 4, 1, 3,
+        1, 2, 1, 5, 1, 3, 2, 4, 1, 5,
+        1, 3, 2, 1, 4, 5, 2, 1, 3, 6
+      ],
+      "winRules": {
+        "default": "lose",
+        "rules": [
+          { "sound": "jackpot", "symbols": [6, 6, 6] },
+          { "sound": "bigwin", "symbols": [4, 4, 4] },
+          { "sound": "win", "symbols": [1, 1, 1] },
+          { "sound": "win", "symbols": [2, 2, 2] },
+          { "sound": "win", "symbols": [3, 3, 3] },
+          { "sound": "win", "symbols": [5, 5, 5] },
+          { "sound": "lose", "symbols": [1, 2, 3] },
+          { "sound": "lose", "symbols": [3, 4, 5] },
+          { "sound": "lose", "symbols": [2, 4, 6] }
+        ]
+      }
+    }
+  }
+}

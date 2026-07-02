@@ -1,36 +1,231 @@
 (function initSlotMachineCore(global) {
   "use strict";
 
-  const REEL_STRIP = [
-    "🍒", "🔔", "🍒", "⭐", "🍒", "🔔", "🍒", "💎", "🍒", "⭐",
-    "🍒", "🔔", "🍒", "🟡", "🍒", "⭐", "🔔", "💎", "🍒", "🟡",
-    "🍒", "⭐", "🔔", "🍒", "💎", "🟡", "🔔", "🍒", "⭐", "🔴"
-  ];
-
-  const SYMBOL_MAP = { 1: "🍒", 2: "🔔", 3: "⭐", 4: "💎", 5: "🟡", 6: "🔴" };
-
-  const COUNT = REEL_STRIP.length;
   const H = 120;
-  const LOOP_HEIGHT = COUNT * H;
   const BASE_SPEED = 90;
   const SPIN_PX_PER_MS = BASE_SPEED / (1000 / 60);
 
+  // ──────────────────────────────────────────────────────────────────────────
+  // REEL SETUPS (data-driven)
+  //
+  // Reel content is loaded from a named setup so you can define several in
+  // client/public/reels.json and switch which one loads (see loadSetup /
+  // configureReels below). Symbols are emoji/text now and can be swapped for
+  // PNG images later via the "image" field — no code changes needed.
+  //
+  // A setup looks like:
+  //   {
+  //     "name": "classic",
+  //     "symbols": [
+  //       { "id": 1, "label": "Cherry", "glyph": "🍒", "image": null },
+  //       ... exactly 6 symbols, ids 1..6 ...
+  //     ],
+  //     "strip": [1, 2, 1, 3, ...]   // symbol ids in reel order
+  //   }
+  //
+  // ── CRITERIA every setup MUST meet (enforced by validateSetup) so the
+  //    animation and game logic keep working correctly: ──────────────────────
+  //   1. symbols: EXACTLY 6 entries, each with a UNIQUE integer id in 1..6.
+  //        The admin Force inputs + legend and the server force/result values
+  //        are all keyed to ids 1-6. Changing the count means also updating
+  //        admin.html (legend + inputs) and the server.
+  //   2. Each symbol needs a "glyph" (text/emoji) OR an "image" (PNG url).
+  //        If "image" is set it renders as <img class="symbol-img"> (sized to
+  //        the 120px cell); otherwise the "glyph" text is shown. If an image
+  //        fails to load, it falls back to the glyph.
+  //   3. strip: a non-empty array of symbol ids; every id must exist in symbols.
+  //   4. Every symbol id 1..6 MUST appear at least once in the strip, so a
+  //      forced or random result can always land on it.
+  //   5. Strip length should be >= 12 so the scroll looks right; 30 is default.
+  //      If you change the length, set STRIP_COUNT in the server to the SAME
+  //      value (server/src/index.js and server/src/serial.js) so server-random
+  //      results stay uniform across the whole strip.
+  //   6. The JS symbol height (H = 120) MUST match the .symbol height in
+  //      slot-machine.css. The .reel height (360px) shows 3 symbols at a time.
+  //
+  //   Optional: "winRules" maps a final result (the 3 landed symbol ids) to a
+  //   win-sound key. Shape:
+  //     "winRules": {
+  //       "default": "lose",
+  //       "rules": [ { "sound": "jackpot", "symbols": [6, 6, 6] }, ... ]
+  //     }
+  //   Rules match order-independently (as a multiset); the first match wins,
+  //   otherwise "default" is used. Sound keys map to /public/sounds/<key>.wav
+  //   on the client and are played when all reels have fully stopped.
+  // ──────────────────────────────────────────────────────────────────────────
+
+  const DEFAULT_SETUP = {
+    name: "classic",
+    symbols: [
+      { id: 1, label: "Cherry", glyph: "🍒", image: null },
+      { id: 2, label: "Bell", glyph: "🔔", image: null },
+      { id: 3, label: "Star", glyph: "⭐", image: null },
+      { id: 4, label: "Diamond", glyph: "💎", image: null },
+      { id: 5, label: "Bonus", glyph: "🟡", image: null },
+      { id: 6, label: "Jackpot", glyph: "🔴", image: null },
+    ],
+    strip: [
+      1, 2, 1, 3, 1, 2, 1, 4, 1, 3,
+      1, 2, 1, 5, 1, 3, 2, 4, 1, 5,
+      1, 3, 2, 1, 4, 5, 2, 1, 3, 6,
+    ],
+  };
+
+  // Active reel state (mutable — updated by configureReels()).
+  let activeSetup = null;      // raw setup object in use
+  let REEL_STRIP = [];         // array of symbol ids, in reel order
+  let SYMBOL_BY_ID = {};       // id -> symbol descriptor { id, label, glyph, image }
+  let COUNT = 0;
+  let LOOP_HEIGHT = 0;
+  let symbolOccurrences = {};  // id -> [indices in REEL_STRIP]
+
   function buildSymbolOccurrences() {
-    const symbolOccurrences = {};
-    REEL_STRIP.forEach((symbol, index) => {
-      if (!symbolOccurrences[symbol]) {
-        symbolOccurrences[symbol] = [];
+    const occurrences = {};
+    REEL_STRIP.forEach((id, index) => {
+      if (!occurrences[id]) {
+        occurrences[id] = [];
       }
-      symbolOccurrences[symbol].push(index);
+      occurrences[id].push(index);
     });
-    return symbolOccurrences;
+    return occurrences;
   }
 
-  const symbolOccurrences = buildSymbolOccurrences();
+  // Returns an array of human-readable problems; empty array means the setup is valid.
+  function validateSetup(setup) {
+    const problems = [];
+
+    if (!setup || typeof setup !== "object") {
+      return ["setup is not an object"];
+    }
+
+    const symbols = Array.isArray(setup.symbols) ? setup.symbols : [];
+    if (symbols.length !== 6) {
+      problems.push("symbols must have exactly 6 entries (ids 1..6)");
+    }
+
+    const ids = symbols.map((symbol) => symbol && symbol.id);
+    for (let id = 1; id <= 6; id++) {
+      if (!ids.includes(id)) {
+        problems.push("missing symbol id " + id);
+      }
+    }
+
+    symbols.forEach((symbol) => {
+      if (symbol && !symbol.glyph && !symbol.image) {
+        problems.push("symbol id " + (symbol.id) + " needs a glyph or image");
+      }
+    });
+
+    const strip = Array.isArray(setup.strip) ? setup.strip : [];
+    if (strip.length === 0) {
+      problems.push("strip must be a non-empty array");
+    }
+
+    const idSet = new Set(ids);
+    strip.forEach((id, i) => {
+      if (!idSet.has(id)) {
+        problems.push("strip[" + i + "] references unknown symbol id " + id);
+      }
+    });
+
+    for (let id = 1; id <= 6; id++) {
+      if (idSet.has(id) && !strip.includes(id)) {
+        problems.push("symbol id " + id + " never appears in the strip");
+      }
+    }
+
+    return problems;
+  }
+
+  // Applies a setup as the active reel configuration. Falls back to the default
+  // (and warns) if the setup fails validation. Call BEFORE createMachine(), or
+  // call machine.rebuild() afterwards to redraw with the new setup.
+  function configureReels(setup) {
+    const problems = validateSetup(setup);
+    const chosen = problems.length === 0 ? setup : DEFAULT_SETUP;
+
+    if (problems.length > 0) {
+      console.warn("[Reels] invalid setup, using default:\n - " + problems.join("\n - "));
+    }
+
+    activeSetup = chosen;
+    REEL_STRIP = chosen.strip.slice();
+    SYMBOL_BY_ID = {};
+    chosen.symbols.forEach((symbol) => {
+      SYMBOL_BY_ID[symbol.id] = symbol;
+    });
+    COUNT = REEL_STRIP.length;
+    LOOP_HEIGHT = COUNT * H;
+    symbolOccurrences = buildSymbolOccurrences();
+
+    return problems.length === 0;
+  }
+
+  // Apply the built-in default immediately so createMachine() works even before
+  // (or without) an external setup being loaded.
+  configureReels(DEFAULT_SETUP);
+
+  function getQueryParam(name) {
+    try {
+      return new URLSearchParams(global.location.search).get(name);
+    } catch (error) {
+      return null;
+    }
+  }
+
+  // Fetches reels.json and configures the chosen setup. Selection priority:
+  // explicit options.name > ?setup= query param > json.activeSetup.
+  // Always resolves (keeps the default on any failure). Await it before
+  // createMachine(), or follow with machine.rebuild().
+  function loadSetup(options) {
+    const opts = options || {};
+    const url = opts.url || "/public/reels.json";
+
+    return fetch(url)
+      .then((response) => response.json())
+      .then((data) => {
+        const setupName = opts.name || getQueryParam("setup") || data.activeSetup;
+        const setups = data.setups || {};
+        const setup = setups[setupName];
+
+        if (!setup) {
+          console.warn("[Reels] setup '" + setupName + "' not found, using default");
+          return false;
+        }
+
+        return configureReels(setup);
+      })
+      .catch((error) => {
+        console.warn("[Reels] failed to load setups, using default:", error.message);
+        return false;
+      });
+  }
 
   function symbolNumToIndex(n) {
-    const emoji = SYMBOL_MAP[Math.max(1, Math.min(6, n || 1))];
-    return symbolOccurrences[emoji][0];
+    const id = Math.max(1, Math.min(6, n || 1));
+    const occurrences = symbolOccurrences[id];
+    return occurrences && occurrences.length > 0 ? occurrences[0] : 0;
+  }
+
+  // Maps a final result (3 landed symbol ids) to a win-sound key using the
+  // active setup's optional winRules. Returns the matching rule's sound, else
+  // the configured default, else null.
+  function resolveWinSound(symbolIds) {
+    const winRules = activeSetup && activeSetup.winRules ? activeSetup.winRules : null;
+    if (!winRules) {
+      return null;
+    }
+
+    const target = symbolIds.slice().sort((a, b) => a - b).join(",");
+    const rules = Array.isArray(winRules.rules) ? winRules.rules : [];
+
+    for (const rule of rules) {
+      if (Array.isArray(rule.symbols) && rule.symbols.slice().sort((a, b) => a - b).join(",") === target) {
+        return rule.sound || null;
+      }
+    }
+
+    return winRules.default || null;
   }
 
   function createReel() {
@@ -52,6 +247,9 @@
     const reelIds = config.reelIds || ["r0", "r1", "r2"];
     const minForward = typeof config.minForward === "number" ? config.minForward : H * 6;
     const stopGapMs = typeof config.stopGapMs === "number" ? config.stopGapMs : 350;
+    const onSpinStart = typeof config.onSpinStart === "function" ? config.onSpinStart : null;
+    const onReelStopped = typeof config.onReelStopped === "function" ? config.onReelStopped : null;
+    const onResult = typeof config.onResult === "function" ? config.onResult : null;
 
     let pendingResult = null;
     let stopQueue = [];
@@ -69,10 +267,26 @@
         el.innerHTML = "";
         for (let repeat = 0; repeat < 3; repeat++) {
           for (let index = 0; index < COUNT; index++) {
-            const symbol = document.createElement("div");
-            symbol.className = "symbol";
-            symbol.innerText = REEL_STRIP[index];
-            el.appendChild(symbol);
+            const cell = document.createElement("div");
+            cell.className = "symbol";
+
+            const descriptor = SYMBOL_BY_ID[REEL_STRIP[index]];
+
+            if (descriptor && descriptor.image) {
+              const img = document.createElement("img");
+              img.className = "symbol-img";
+              img.src = descriptor.image;
+              img.alt = descriptor.label || "";
+              // Fall back to the glyph if the image fails to load.
+              img.addEventListener("error", () => {
+                cell.textContent = descriptor.glyph || "";
+              });
+              cell.appendChild(img);
+            } else {
+              cell.innerText = descriptor ? descriptor.glyph : "";
+            }
+
+            el.appendChild(cell);
           }
         }
       });
@@ -111,6 +325,10 @@
         reel.spinStart = now;
         reel.stopRequested = false;
       });
+
+      if (onSpinStart) {
+        onSpinStart();
+      }
 
       rafId = requestAnimationFrame(loop);
     }
@@ -184,6 +402,16 @@
             global.gsap.set("#" + reelIds[index], { y: -reel.y });
             reel.phase = "stopped";
 
+            if (onReelStopped) {
+              onReelStopped(index, stopQueue.length === 0);
+            }
+
+            // Last reel fully stopped: report the final result + win sound.
+            if (stopQueue.length === 0 && onResult) {
+              const resultSymbols = reels.map((r) => REEL_STRIP[r.targetIndex]);
+              onResult(resultSymbols, resolveWinSound(resultSymbols));
+            }
+
             if (stopQueue.length > 0) {
               const nextIndex = stopQueue.shift();
               setTimeout(() => requestStopFor(nextIndex), stopGapMs);
@@ -203,6 +431,11 @@
       scheduleStopsFromIndices,
       scheduleStopsFromSymbolNums,
       symbolNumToIndex,
+      // Redraw the reels using the current active setup (call after loadSetup).
+      rebuild() {
+        build();
+        renderInitialState();
+      },
       randomResult() {
         return [randIndex(), randIndex(), randIndex()];
       },
@@ -301,6 +534,12 @@
   global.SlotMachineCore = {
     createMachine,
     connectWebSocket,
+    configureReels,
+    loadSetup,
+    validateSetup,
+    getActiveSetup() {
+      return activeSetup;
+    },
     constants: {
       AUTO_STOP_MS: 4000,
     },

@@ -121,3 +121,50 @@ cd server
 PORT=8080 SERIAL_PATH=/dev/tty.usbserial-XXXX BAUD_RATE=115200 IMPACT_MIN_INTENSITY=800 IMPACT_MAX_INTENSITY=4095 IMPACT_DEBOUNCE_MS=1200 SPIN_STATE_TIMEOUT_MS=4000 SPIN_COOLDOWN_MS=3000 npm start
 ```
 
+## Reel setups
+
+Reel content is data-driven. Named setups live in `client/public/reels.json`, and
+both the display and admin pages load the active one. Selection priority:
+`?setup=<name>` URL query → the `activeSetup` field in `reels.json` → the
+built-in default. Symbols use emoji/text now and can be swapped for PNG images
+later via each symbol's `image` field (falls back to the glyph if the image
+fails to load).
+
+A full criteria block sits in `client/src/slot-machine-core.js` right above the
+setup loader, and `validateSetup()` enforces it (invalid setups log the problems
+and fall back to the default). Every setup must meet:
+
+1. Exactly 6 symbols, with unique ids `1-6`.
+2. Each symbol needs a `glyph` or an `image`.
+3. `strip` is a non-empty array of ids that all exist in `symbols`.
+4. Every id `1-6` must appear at least once in the strip.
+5. Strip length should be `>= 12` (default `30`); if you change it, set
+   `STRIP_COUNT` in the server (`server/src/index.js` and `server/src/serial.js`)
+   to match so server-random results stay uniform.
+6. The JS symbol height (`H = 120`) must match the `.symbol` height in
+   `client/src/styles/slot-machine.css`.
+
+### Win sounds
+
+Each setup can include an optional `winRules` block that maps a final result
+(the three landed symbol ids) to a result sound played once all reels have
+fully stopped:
+
+```json
+"winRules": {
+  "default": "lose",
+  "rules": [
+    { "sound": "jackpot", "symbols": [6, 6, 6] },
+    { "sound": "bigwin",  "symbols": [4, 4, 4] },
+    { "sound": "win",     "symbols": [1, 1, 1] }
+  ]
+}
+```
+
+- Matching is order-independent (a multiset): `[1, 1, 1]` means all three reels
+  landed on symbol id `1`. The first matching rule wins; if none match, the
+  `default` sound plays.
+- Each `sound` key maps to `client/public/sounds/<key>.wav`. The built-in keys
+  are `jackpot.wav`, `bigwin.wav`, `win.wav`, and `lose.wav` — drop those files
+  into `client/public/sounds/`.
+

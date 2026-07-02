@@ -4,6 +4,45 @@
   const machine = window.SlotMachineCore.createMachine();
   const autoStopMs = window.SlotMachineCore.constants.AUTO_STOP_MS;
 
+  // Load the reel setup from reels.json (falls back to the built-in default),
+  // then redraw the reels and the legend with it.
+  renderLegend();
+  window.SlotMachineCore.loadSetup().then(() => {
+    machine.rebuild();
+    renderLegend();
+  });
+
+  function renderLegend() {
+    const legendEl = document.getElementById("legend");
+    if (!legendEl) {
+      return;
+    }
+
+    const setup = window.SlotMachineCore.getActiveSetup();
+    const symbols = setup && Array.isArray(setup.symbols) ? setup.symbols.slice() : [];
+    symbols.sort((a, b) => a.id - b.id);
+
+    legendEl.innerHTML = "";
+    symbols.forEach((symbol) => {
+      const item = document.createElement("span");
+      item.className = "legend-item";
+      item.appendChild(document.createTextNode(symbol.id + "="));
+
+      if (symbol.image) {
+        const img = document.createElement("img");
+        img.className = "legend-img";
+        img.src = symbol.image;
+        img.alt = symbol.label || "";
+        item.appendChild(img);
+      } else {
+        item.appendChild(document.createTextNode(symbol.glyph || ""));
+      }
+
+      item.appendChild(document.createTextNode(" " + (symbol.label || "")));
+      legendEl.appendChild(item);
+    });
+  }
+
   const forceBtn = document.getElementById("forceBtn");
   const startBtn = document.getElementById("startBtn");
   const stopBtn = document.getElementById("stopBtn");

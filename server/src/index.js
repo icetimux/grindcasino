@@ -68,6 +68,9 @@ function contentTypeFor(filePath) {
 	if (ext === ".jpg" || ext === ".jpeg") return "image/jpeg";
 	if (ext === ".webp") return "image/webp";
 	if (ext === ".ico") return "image/x-icon";
+	if (ext === ".wav") return "audio/wav";
+	if (ext === ".mp3") return "audio/mpeg";
+	if (ext === ".ogg") return "audio/ogg";
 
 	return "application/octet-stream";
 }

@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <title>Slot Machine</title>
-<script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js"></script>
+<script src="/public/dist/gsap.min.js"></script>
 <link rel="stylesheet" href="./src/styles/slot-machine.css" />
 </head>
 
@@ -26,9 +26,7 @@
   <input id="c" placeholder="1-6">
   <button id="forceBtn">Force</button>
 </div>
-<div class="legend">
-  1=🍒 Cherry &nbsp; 2=🔔 Bell &nbsp; 3=⭐ Star &nbsp; 4=💎 Diamond &nbsp; 5=🟡 Bonus &nbsp; 6=🔴 Jackpot
-</div>
+<div class="legend" id="legend"></div>
 <div id="countdown">0.0s</div>
 <div id="eventStatus">Last event: none</div>
 <div class="ws-wrap"><span id="wsStatus">⚫ WS</span></div>
