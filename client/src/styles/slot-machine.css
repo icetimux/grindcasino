@@ -1,0 +1,112 @@
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: #111;
+  color: white;
+  font-family: sans-serif;
+  min-height: 100vh;
+}
+
+body.display-page {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 16px;
+}
+
+body.admin-page {
+  text-align: center;
+}
+
+.machine {
+  display: flex;
+  justify-content: center;
+  gap: 20px;
+}
+
+body.display-page .machine {
+  margin-top: 0;
+}
+
+body.admin-page .machine {
+  margin: 20px 0 40px;
+}
+
+.reel {
+  width: 130px;
+  height: 360px;
+  overflow: hidden;
+  border-radius: 14px;
+  border: 2px solid #444;
+  background: #222;
+  position: relative;
+}
+
+.strip {
+  position: absolute;
+  width: 100%;
+  top: 0;
+  left: 0;
+  will-change: transform;
+}
+
+.symbol {
+  height: 120px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  font-size: 3rem;
+}
+
+.controls button,
+.controls input {
+  margin: 5px;
+  padding: 8px;
+  width: 60px;
+  text-align: center;
+}
+
+#forceBtn {
+  background: green;
+  color: white;
+  border-color: darkgreen;
+}
+
+#forceBtn:disabled {
+  background: #444;
+  color: #888;
+  border-color: #555;
+  cursor: not-allowed;
+}
+
+#forceBtn.urgent {
+  background: red;
+  color: white;
+  border-color: red;
+}
+
+#eventStatus,
+#wsStatus {
+  font-size: 0.75rem;
+  opacity: 0.45;
+}
+
+.legend {
+  font-size: 11px;
+  opacity: 0.5;
+  margin-bottom: 8px;
+}
+
+#countdown {
+  font-size: 3.5rem;
+  font-weight: bold;
+  min-height: 4.5rem;
+  letter-spacing: 4px;
+}
+
+.ws-wrap {
+  font-size: 0.75rem;
+  opacity: 0.4;
+  margin-top: 4px;
+}
