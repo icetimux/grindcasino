@@ -4,7 +4,9 @@
   const HowlCtor = global.Howl;
   const HowlerGlobal = global.Howler;
 
-  function makeSound(src) {
+  function makeSound(src, options) {
+    const config = options || {};
+
     if (!HowlCtor) {
       return { play() {} };
     }
@@ -12,13 +14,14 @@
     return new HowlCtor({
       src: [src],
       preload: true,
+      loop: Boolean(config.loop),
       // Web Audio (html5:false) allows the same clip to overlap/layer,
       // which we want when reels stop close together.
       html5: false,
     });
   }
 
-  const spinning = makeSound("/public/sounds/spinning.wav");
+  const spinning = makeSound("/public/sounds/spinning.wav", { loop: true });
   const thunk = makeSound("/public/sounds/thunk.wav");
 
   // Result sounds, keyed to match reels.json winRules sound keys.
@@ -98,7 +101,13 @@
   global.SlotAudio = {
     // Plays once when the reels start spinning.
     playSpinStart() {
+      if (HowlCtor && spinId !== null && spinId !== undefined) {
+        spinning.stop(spinId);
+      }
       spinId = spinning.play();
+      if (HowlCtor && spinId !== null && spinId !== undefined) {
+        spinning.volume(1, spinId);
+      }
     },
     // Plays each time a reel comes to a complete stop. Calls overlap by design.
     playReelStop() {
