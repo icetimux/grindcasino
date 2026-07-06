@@ -2,7 +2,6 @@
   "use strict";
 
   const machine = window.SlotMachineCore.createMachine();
-  const autoStopMs = window.SlotMachineCore.constants.AUTO_STOP_MS;
 
   // Load the reel setup from reels.json (falls back to the built-in default),
   // then redraw the reels and the legend with it.
@@ -10,6 +9,7 @@
   window.SlotMachineCore.loadSetup().then(() => {
     machine.rebuild();
     renderLegend();
+    renderScenarioButtons();
   });
 
   function renderLegend() {
@@ -43,15 +43,112 @@
     });
   }
 
-  const forceBtn = document.getElementById("forceBtn");
   const startBtn = document.getElementById("startBtn");
   const stopBtn = document.getElementById("stopBtn");
-  const countdownEl = document.getElementById("countdown");
+  const scenarioButtonsEl = document.getElementById("scenarioButtons");
   const eventStatusEl = document.getElementById("eventStatus");
+  const scenarioButtons = [];
 
-  let autoStopTimer = null;
-  let countdownInterval = null;
+  const SCENARIOS = [
+    { sound: "jackpot", color: "green", label: "Jackpot" },
+    { sound: "bigwin", color: "yellow", label: "High Win" },
+    { sound: "win", color: "orange", label: "Mid Win" },
+    { sound: "lose", color: "red", label: "Lose" },
+  ];
+
   let startRequested = false;
+  let remoteSpinning = false;
+
+  function createScenarioSymbolNode(symbol) {
+    if (symbol && symbol.image) {
+      const img = document.createElement("img");
+      img.className = "scenario-symbol-img";
+      img.src = symbol.image;
+      img.alt = symbol.label || "";
+      return img;
+    }
+
+    const span = document.createElement("span");
+    span.className = "scenario-symbol-text";
+    span.textContent = symbol && symbol.glyph ? symbol.glyph : "?";
+    return span;
+  }
+
+  function getScenarioRules() {
+    const setup = window.SlotMachineCore.getActiveSetup();
+    const winRules = setup && setup.winRules ? setup.winRules : null;
+    const rules = winRules && Array.isArray(winRules.rules) ? winRules.rules : [];
+    const ruleBySound = {};
+
+    rules.forEach((rule) => {
+      if (rule && rule.sound && Array.isArray(rule.symbols)) {
+        ruleBySound[rule.sound] = rule.symbols.slice();
+      }
+    });
+
+    return SCENARIOS.map((scenario) => ({
+      ...scenario,
+      symbols: ruleBySound[scenario.sound] || [],
+    }));
+  }
+
+  function renderScenarioButtons() {
+    if (!scenarioButtonsEl) {
+      return;
+    }
+
+    scenarioButtonsEl.innerHTML = "";
+    scenarioButtons.length = 0;
+
+    const setup = window.SlotMachineCore.getActiveSetup();
+    const symbols = (setup && Array.isArray(setup.symbols) ? setup.symbols : []).slice();
+    const symbolById = {};
+    symbols.forEach((symbol) => {
+      symbolById[symbol.id] = symbol;
+    });
+
+    getScenarioRules().forEach((scenario) => {
+      const button = document.createElement("button");
+      button.className = "scenario-btn scenario-" + scenario.color;
+      button.type = "button";
+
+      const title = document.createElement("span");
+      title.className = "scenario-title";
+      title.textContent = scenario.label;
+      button.appendChild(title);
+
+      const symbolsWrap = document.createElement("span");
+      symbolsWrap.className = "scenario-symbols";
+
+      scenario.symbols.forEach((id) => {
+        const symbol = symbolById[id] || null;
+        const token = document.createElement("span");
+        token.className = "scenario-symbol-token";
+        token.appendChild(createScenarioSymbolNode(symbol));
+        symbolsWrap.appendChild(token);
+      });
+
+      button.appendChild(symbolsWrap);
+      button.addEventListener("click", () => forceStop(scenario.symbols));
+
+      scenarioButtons.push(button);
+      scenarioButtonsEl.appendChild(button);
+    });
+
+    syncControls();
+  }
+
+  function setScenarioButtonsEnabled(enabled) {
+    scenarioButtons.forEach((button) => {
+      button.disabled = !enabled;
+    });
+  }
+
+  function setStopEnabled(enabled) {
+    if (stopBtn) {
+      stopBtn.disabled = !enabled;
+    }
+  }
 
   function updateEventStatus(text) {
     if (eventStatusEl) {
@@ -69,86 +166,28 @@
     }
   }
 
-  function clearCountdown() {
-    if (countdownInterval) {
-      clearInterval(countdownInterval);
-      countdownInterval = null;
-    }
-
-    if (countdownEl) {
-      countdownEl.textContent = "0.0s";
-    }
-
-    if (forceBtn) {
-      forceBtn.classList.remove("urgent");
-    }
-  }
-
-  function startCountdown() {
-    clearCountdown();
-
-    const end = performance.now() + autoStopMs;
-    if (countdownEl) {
-      countdownEl.textContent = "4.0s";
-    }
-    if (forceBtn) {
-      forceBtn.disabled = false;
-    }
-
-    countdownInterval = setInterval(() => {
-      const remaining = Math.max(0, end - performance.now());
-
-      if (countdownEl) {
-        countdownEl.textContent = (remaining / 1000).toFixed(1) + "s";
-      }
-
-      if (forceBtn) {
-        if (remaining <= 1000 && remaining > 0) {
-          forceBtn.classList.add("urgent");
-        } else {
-          forceBtn.classList.remove("urgent");
-        }
-      }
-
-      if (remaining <= 0) {
-        clearCountdown();
-        if (forceBtn) {
-          forceBtn.disabled = true;
-        }
-      }
-    }, 100);
-  }
-
-  function stopAutoStopTimer() {
-    if (autoStopTimer) {
-      clearTimeout(autoStopTimer);
-      autoStopTimer = null;
-    }
+  function syncControls() {
+    setStartEnabled(!remoteSpinning);
+    setStopEnabled(remoteSpinning);
+    setScenarioButtonsEnabled(remoteSpinning);
   }
 
   function startSpinLocally() {
-    stopAutoStopTimer();
+    remoteSpinning = true;
     machine.startSpin();
-    setStartEnabled(false);
-    startCountdown();
-    autoStopTimer = setTimeout(() => {
-      autoStopTimer = null;
-      stopRandom();
-    }, autoStopMs);
+    syncControls();
   }
 
   function stopLocally(result) {
-    stopAutoStopTimer();
-    clearCountdown();
+    remoteSpinning = false;
     machine.scheduleStopsFromIndices(result);
-    setStartEnabled(true);
+    syncControls();
   }
 
   function stopLocallyBySymbols(symbolNums) {
-    stopAutoStopTimer();
-    clearCountdown();
+    remoteSpinning = false;
     machine.scheduleStopsFromSymbolNums(symbolNums);
-    setStartEnabled(true);
+    syncControls();
   }
 
   const wsClient = window.SlotMachineCore.connectWebSocket({
@@ -157,23 +196,26 @@
       const type = message.type || message.cmd;
 
       if (type === "spin:start") {
+        remoteSpinning = true;
         if (!machine.isSpinning()) {
           startRequested = false;
           startSpinLocally();
+        } else {
+          syncControls();
         }
       } else if (type === "spin:stop") {
+        remoteSpinning = false;
         if (machine.isSpinning() && !machine.hasPendingResult()) {
-          if (forceBtn) {
-            forceBtn.disabled = true;
-          }
           stopLocally(message.result || []);
+        } else {
+          syncControls();
         }
       } else if (type === "spin:force") {
+        remoteSpinning = false;
         if (machine.isSpinning() && !machine.hasPendingResult()) {
-          if (forceBtn) {
-            forceBtn.disabled = true;
-          }
           stopLocallyBySymbols(message.symbolNums || []);
+        } else {
+          syncControls();
         }
       } else if (type === "impact") {
         updateEventStatus(
@@ -190,17 +232,17 @@
   });
 
   function start() {
-    if (machine.isSpinning() || startRequested) {
+    if (remoteSpinning || startRequested) {
       return;
     }
 
     startRequested = true;
-    setStartEnabled(false);
+    syncControls();
     wsClient.send({ type: "spin:start" });
   }
 
   function stopRandom() {
-    if (!machine.isSpinning()) {
+    if (!remoteSpinning) {
       return;
     }
 
@@ -208,17 +250,8 @@
     wsClient.send({ type: "spin:stop", result });
   }
 
-  function forceStop() {
-    const symbolNums = [
-      +document.getElementById("a").value || 1,
-      +document.getElementById("b").value || 1,
-      +document.getElementById("c").value || 1,
-    ];
-
-    if (machine.isSpinning()) {
-      if (forceBtn) {
-        forceBtn.disabled = true;
-      }
+  function forceStop(symbolNums) {
+    if (remoteSpinning) {
       wsClient.send({ type: "spin:force", symbolNums });
     }
   }
@@ -231,9 +264,7 @@
     stopBtn.addEventListener("click", stopRandom);
   }
 
-  if (forceBtn) {
-    forceBtn.addEventListener("click", forceStop);
-  }
+  renderScenarioButtons();
 
-  setStartEnabled(true);
+  syncControls();
 })();

@@ -4,7 +4,7 @@ const { WebSocketServer } = require("ws");
 const { normalizeMessage } = require("../../shared/protocol");
 
 function createWebSocketBridge(httpServer, options = {}) {
-	const { logger = console, handleMessage } = options;
+	const { logger = console, handleMessage, getInitialMessages } = options;
 	const wss = new WebSocketServer({ noServer: true });
 	let isClosed = false;
 
@@ -31,6 +31,16 @@ function createWebSocketBridge(httpServer, options = {}) {
 
 	wss.on("connection", (ws) => {
 		logger.log(`[WS] client connected — total: ${wss.clients.size}`);
+
+		const initialMessages = typeof getInitialMessages === "function"
+			? getInitialMessages()
+			: [];
+
+		(initialMessages || []).forEach((message) => {
+			if (message && ws.readyState === 1) {
+				ws.send(JSON.stringify(message));
+			}
+		});
 
 		ws.on("message", (raw) => {
 			try {

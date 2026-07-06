@@ -1,9 +1,12 @@
 (function initSlotMachineCore(global) {
   "use strict";
 
-  const H = 120;
+  const IS_DISPLAY_PAGE = !!(global.document && global.document.body && global.document.body.classList.contains("display-page"));
+  const H = IS_DISPLAY_PAGE ? 360 : 120;
   const BASE_SPEED = 90;
-  const SPIN_PX_PER_MS = BASE_SPEED / (1000 / 60);
+  // Scale px/ms by H/120 so the visual symbol-scroll rate and stop timing
+  // are identical on the display page (H=360) and admin page (H=120).
+  const SPIN_PX_PER_MS = (BASE_SPEED / (1000 / 60)) * (H / 120);
 
   // ──────────────────────────────────────────────────────────────────────────
   // REEL SETUPS (data-driven)
@@ -40,8 +43,8 @@
   //      If you change the length, set STRIP_COUNT in the server to the SAME
   //      value (server/src/index.js and server/src/serial.js) so server-random
   //      results stay uniform across the whole strip.
-  //   6. The JS symbol height (H = 120) MUST match the .symbol height in
-  //      slot-machine.css. The .reel height (360px) shows 3 symbols at a time.
+  //   6. The JS symbol height (H) MUST match .symbol height in slot-machine.css
+  //      for the current page (display: 360, admin: 120).
   //
   //   Optional: "winRules" maps a final result (the 3 landed symbol ids) to a
   //   win-sound key. Shape:
@@ -247,6 +250,8 @@
     const reelIds = config.reelIds || ["r0", "r1", "r2"];
     const minForward = typeof config.minForward === "number" ? config.minForward : H * 6;
     const stopGapMs = typeof config.stopGapMs === "number" ? config.stopGapMs : 350;
+    // Target stop duration in ms — every reel will stop in approximately this time.
+    const TARGET_STOP_DURATION_MS = 900;
     const onSpinStart = typeof config.onSpinStart === "function" ? config.onSpinStart : null;
     const onReelStopped = typeof config.onReelStopped === "function" ? config.onReelStopped : null;
     const onResult = typeof config.onResult === "function" ? config.onResult : null;
@@ -369,8 +374,16 @@
           if (reel.stopRequested) {
             reel.stopRequested = false;
 
+            const vStart = easeInOutQuad(Math.min(1, (currentNow - reel.spinStart) / 500)) * SPIN_PX_PER_MS;
+            // Ideal forward travel to hit exactly TARGET_STOP_DURATION_MS.
+            const targetFwd = vStart * TARGET_STOP_DURATION_MS / 2;
+
+            // Pick the occurrence of the target symbol whose forward distance
+            // is closest to targetFwd (checking base distance and +1 loop),
+            // so every reel decelerates over the same wall-clock time.
             const occurrences = symbolOccurrences[REEL_STRIP[reel.targetIndex]];
             let bestFwd = Infinity;
+            let bestDiff = Infinity;
 
             for (const occurrenceIndex of occurrences) {
               const centreY = (((occurrenceIndex - 1) * H) % LOOP_HEIGHT + LOOP_HEIGHT) % LOOP_HEIGHT;
@@ -378,12 +391,17 @@
               if (fwd < minForward) {
                 fwd += LOOP_HEIGHT;
               }
-              if (fwd < bestFwd) {
-                bestFwd = fwd;
+              // Consider this distance and one extra loop to bracket targetFwd.
+              for (let extra = 0; extra <= 1; extra++) {
+                const candidate = fwd + extra * LOOP_HEIGHT;
+                const diff = Math.abs(candidate - targetFwd);
+                if (diff < bestDiff) {
+                  bestDiff = diff;
+                  bestFwd = candidate;
+                }
               }
             }
 
-            const vStart = easeInOutQuad(Math.min(1, (currentNow - reel.spinStart) / 500)) * SPIN_PX_PER_MS;
             reel.phase = "stopping";
             reel.stopStartY = reel.y;
             reel.stopBestFwd = bestFwd;
