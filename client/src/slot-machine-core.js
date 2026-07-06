@@ -257,10 +257,22 @@
     const onResult = typeof config.onResult === "function" ? config.onResult : null;
 
     let pendingResult = null;
+    let usedStopContextsBySymbol = {};
     let stopQueue = [];
     let rafId = null;
     let rafPrevNow = 0;
     const reels = [createReel(), createReel(), createReel()];
+
+    function resetStopContextUsage() {
+      usedStopContextsBySymbol = {};
+    }
+
+    function contextKeyAt(index) {
+      const current = ((index % COUNT) + COUNT) % COUNT;
+      const prev = (current - 1 + COUNT) % COUNT;
+      const next = (current + 1) % COUNT;
+      return [REEL_STRIP[prev], REEL_STRIP[current], REEL_STRIP[next]].join(",");
+    }
 
     function build() {
       reelIds.forEach((id) => {
@@ -322,6 +334,7 @@
 
       rafPrevNow = 0;
       pendingResult = null;
+      resetStopContextUsage();
       stopQueue = [];
 
       const now = performance.now();
@@ -348,6 +361,7 @@
         Number(result[1]) || 0,
         Number(result[2]) || 0,
       ];
+      resetStopContextUsage();
       stopQueue = [1, 2];
       requestStopFor(0);
     }
@@ -381,9 +395,11 @@
             // Pick the occurrence of the target symbol whose forward distance
             // is closest to targetFwd (checking base distance and +1 loop),
             // so every reel decelerates over the same wall-clock time.
-            const occurrences = symbolOccurrences[REEL_STRIP[reel.targetIndex]];
-            let bestFwd = Infinity;
-            let bestDiff = Infinity;
+            const symbolId = REEL_STRIP[reel.targetIndex];
+            const occurrences = symbolOccurrences[symbolId];
+            const usedContexts = usedStopContextsBySymbol[symbolId] || new Set();
+
+            const candidates = [];
 
             for (const occurrenceIndex of occurrences) {
               const centreY = (((occurrenceIndex - 1) * H) % LOOP_HEIGHT + LOOP_HEIGHT) % LOOP_HEIGHT;
@@ -395,12 +411,27 @@
               for (let extra = 0; extra <= 1; extra++) {
                 const candidate = fwd + extra * LOOP_HEIGHT;
                 const diff = Math.abs(candidate - targetFwd);
-                if (diff < bestDiff) {
-                  bestDiff = diff;
-                  bestFwd = candidate;
-                }
+                candidates.push({
+                  fwd: candidate,
+                  diff,
+                  contextKey: contextKeyAt(occurrenceIndex),
+                });
               }
             }
+
+            // Prefer a context (prev,current,next symbols) not yet used by
+            // another reel for the same forced symbol in this spin.
+            const freshCandidates = candidates.filter((candidate) => !usedContexts.has(candidate.contextKey));
+            const pool = freshCandidates.length > 0 ? freshCandidates : candidates;
+            pool.sort((a, b) => a.diff - b.diff);
+
+            const chosen = pool[0] || { fwd: minForward, contextKey: "" };
+            const bestFwd = chosen.fwd;
+
+            if (!usedStopContextsBySymbol[symbolId]) {
+              usedStopContextsBySymbol[symbolId] = new Set();
+            }
+            usedStopContextsBySymbol[symbolId].add(chosen.contextKey);
 
             reel.phase = "stopping";
             reel.stopStartY = reel.y;
