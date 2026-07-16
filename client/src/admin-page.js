@@ -53,7 +53,7 @@
     { sound: "jackpot", color: "green", label: "JACKPOT" },
     { sound: "bigwin", color: "yellow", label: "HIGH WIN" },
     { sound: "win", color: "orange", label: "MID WIN" },
-    { sound: "lose", color: "red", label: "WIN" },
+    { sound: "lose", color: "red", label: "LOSE", hideSymbols: true },
   ];
 
   function normalizeSoundKey(value) {
@@ -102,10 +102,99 @@
       }
     });
 
-    return SCENARIOS.map((scenario) => ({
-      ...scenario,
-      symbols: ruleBySound[scenario.sound] || [],
-    }));
+    return SCENARIOS.map((scenario) => {
+      if (scenario.hideSymbols) {
+        return {
+          ...scenario,
+          symbols: [],
+        };
+      }
+
+      return {
+        ...scenario,
+        symbols: ruleBySound[scenario.sound] || [],
+      };
+    });
+  }
+
+  function symbolsSignature(symbolNums) {
+    return (symbolNums || []).slice().sort((a, b) => a - b).join(",");
+  }
+
+  function getRuleSignatures() {
+    const setup = window.SlotMachineCore.getActiveSetup();
+    const winRules = setup && setup.winRules ? setup.winRules : null;
+    const rules = winRules && Array.isArray(winRules.rules) ? winRules.rules : [];
+    const signatures = new Set();
+
+    rules.forEach((rule) => {
+      if (rule && Array.isArray(rule.symbols) && rule.symbols.length >= 3) {
+        signatures.add(symbolsSignature(rule.symbols.slice(0, 3)));
+      }
+    });
+
+    return signatures;
+  }
+
+  function randomDistinctIds(ids) {
+    const pool = ids.slice();
+    for (let i = pool.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      const tmp = pool[i];
+      pool[i] = pool[j];
+      pool[j] = tmp;
+    }
+    return pool.slice(0, 3);
+  }
+
+  function pickForcedLoseSymbols() {
+    const setup = window.SlotMachineCore.getActiveSetup();
+    const ids = (setup && Array.isArray(setup.symbols) ? setup.symbols : []).map((symbol) => symbol && symbol.id).filter((id) => Number.isInteger(id));
+
+    if (ids.length < 3) {
+      return [];
+    }
+
+    const blocked = getRuleSignatures();
+
+    for (let attempt = 0; attempt < 80; attempt++) {
+      const candidate = randomDistinctIds(ids);
+      if (new Set(candidate).size !== 3) {
+        continue;
+      }
+      if (!blocked.has(symbolsSignature(candidate))) {
+        return candidate;
+      }
+    }
+
+    for (let i = 0; i < ids.length; i++) {
+      for (let j = i + 1; j < ids.length; j++) {
+        for (let k = j + 1; k < ids.length; k++) {
+          const candidate = [ids[i], ids[j], ids[k]];
+          if (!blocked.has(symbolsSignature(candidate))) {
+            return candidate;
+          }
+        }
+      }
+    }
+
+    return [];
+  }
+
+  function forceScenarioStop(scenario) {
+    if (!remoteSpinning || !scenario) {
+      return;
+    }
+
+    if (scenario.sound === "lose") {
+      const loseSymbols = pickForcedLoseSymbols();
+      if (loseSymbols.length >= 3) {
+        wsClient.send({ type: "spin:force", symbolNums: loseSymbols, soundKey: "lose" });
+      }
+      return;
+    }
+
+    forceStop(scenario.symbols);
   }
 
   function renderScenarioButtons() {
@@ -133,19 +222,22 @@
       title.textContent = scenario.label;
       button.appendChild(title);
 
-      const symbolsWrap = document.createElement("span");
-      symbolsWrap.className = "scenario-symbols";
+      if (!scenario.hideSymbols) {
+        const symbolsWrap = document.createElement("span");
+        symbolsWrap.className = "scenario-symbols";
 
-      scenario.symbols.forEach((id) => {
-        const symbol = symbolById[id] || null;
-        const token = document.createElement("span");
-        token.className = "scenario-symbol-token";
-        token.appendChild(createScenarioSymbolNode(symbol));
-        symbolsWrap.appendChild(token);
-      });
+        scenario.symbols.forEach((id) => {
+          const symbol = symbolById[id] || null;
+          const token = document.createElement("span");
+          token.className = "scenario-symbol-token";
+          token.appendChild(createScenarioSymbolNode(symbol));
+          symbolsWrap.appendChild(token);
+        });
 
-      button.appendChild(symbolsWrap);
-      button.addEventListener("click", () => forceStop(scenario.symbols));
+        button.appendChild(symbolsWrap);
+      }
+
+      button.addEventListener("click", () => forceScenarioStop(scenario));
 
       scenarioButtons.push(button);
       scenarioButtonsEl.appendChild(button);
@@ -222,14 +314,16 @@
       } else if (type === "spin:stop") {
         remoteSpinning = false;
         if (machine.isSpinning() && !machine.hasPendingResult()) {
-          stopLocally(message.result || []);
+          machine.scheduleStopsFromIndices(message.result || [], message.soundKey || null);
+          syncControls();
         } else {
           syncControls();
         }
       } else if (type === "spin:force") {
         remoteSpinning = false;
         if (machine.isSpinning() && !machine.hasPendingResult()) {
-          stopLocallyBySymbols(message.symbolNums || []);
+          machine.scheduleStopsFromSymbolNums(message.symbolNums || [], message.soundKey || null);
+          syncControls();
         } else {
           syncControls();
         }

@@ -270,6 +270,7 @@
     const onResult = typeof config.onResult === "function" ? config.onResult : null;
 
     let pendingResult = null;
+    let pendingForcedSoundKey = null;
     let usedStopContextsBySymbol = {};
     let stopQueue = [];
     let rafId = null;
@@ -347,6 +348,7 @@
 
       rafPrevNow = 0;
       pendingResult = null;
+      pendingForcedSoundKey = null;
       resetStopContextUsage();
       stopQueue = [];
 
@@ -364,10 +366,12 @@
       rafId = requestAnimationFrame(loop);
     }
 
-    function scheduleStopsFromIndices(result) {
+    function scheduleStopsFromIndices(result, forcedSoundKey) {
       if (!Array.isArray(result) || result.length < 3) {
         return;
       }
+
+      pendingForcedSoundKey = normalizeSoundKey(forcedSoundKey);
 
       pendingResult = [
         Number(result[0]) || 0,
@@ -379,9 +383,9 @@
       requestStopFor(0);
     }
 
-    function scheduleStopsFromSymbolNums(symbolNums) {
+    function scheduleStopsFromSymbolNums(symbolNums, forcedSoundKey) {
       const result = (symbolNums || []).map((value) => symbolNumToIndex(value));
-      scheduleStopsFromIndices(result);
+      scheduleStopsFromIndices(result, forcedSoundKey);
     }
 
     function loop(now) {
@@ -471,7 +475,9 @@
             // Last reel fully stopped: report the final result + win sound.
             if (stopQueue.length === 0 && onResult) {
               const resultSymbols = reels.map((r) => REEL_STRIP[r.targetIndex]);
-              onResult(resultSymbols, resolveWinSound(resultSymbols));
+              const soundKey = resolveWinSound(resultSymbols) || pendingForcedSoundKey;
+              pendingForcedSoundKey = null;
+              onResult(resultSymbols, soundKey);
             }
 
             if (stopQueue.length > 0) {
@@ -509,6 +515,7 @@
       },
       clearPendingResult() {
         pendingResult = null;
+        pendingForcedSoundKey = null;
       },
     };
   }

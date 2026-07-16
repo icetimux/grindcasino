@@ -44,6 +44,9 @@
       ],
       "winRules": {
         "default": "lose",
+        "soundFiles": {
+          "jackpot": "horse.wav"
+        },
         "rules": [
           { "sound": "jackpot", "symbols": [5, 5, 5] },
           { "sound": "bigwin", "symbols": [6, 6, 6] },

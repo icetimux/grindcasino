@@ -24,9 +24,23 @@
   });
   const eventStatusEl = document.getElementById("eventStatus");
 
+  function applySetupAudioConfig() {
+    if (!window.SlotAudio || typeof window.SlotAudio.configureWinSounds !== "function") {
+      return;
+    }
+
+    const setup = window.SlotMachineCore.getActiveSetup();
+    const winRules = setup && setup.winRules ? setup.winRules : null;
+    const soundFiles = winRules && winRules.soundFiles ? winRules.soundFiles : null;
+    window.SlotAudio.configureWinSounds(soundFiles);
+  }
+
   // Load the reel setup from reels.json (falls back to the built-in default),
   // then redraw the reels with it.
-  window.SlotMachineCore.loadSetup().then(() => machine.rebuild());
+  window.SlotMachineCore.loadSetup().then(() => {
+    machine.rebuild();
+    applySetupAudioConfig();
+  });
 
   function updateEventStatus(text) {
     if (eventStatusEl) {
@@ -45,11 +59,11 @@
         }
       } else if (type === "spin:stop") {
         if (machine.isSpinning() && !machine.hasPendingResult()) {
-          machine.scheduleStopsFromIndices(message.result || []);
+          machine.scheduleStopsFromIndices(message.result || [], message.soundKey || null);
         }
       } else if (type === "spin:force") {
         if (machine.isSpinning() && !machine.hasPendingResult()) {
-          machine.scheduleStopsFromSymbolNums(message.symbolNums || []);
+          machine.scheduleStopsFromSymbolNums(message.symbolNums || [], message.soundKey || null);
         }
       } else if (type === "impact") {
         updateEventStatus(

@@ -25,14 +25,14 @@
   const thunk = makeSound("/public/sounds/thunk.wav");
 
   // Result sounds, keyed to match reels.json winRules sound keys.
-  // This project currently ships a single result clip; all keys map to win.wav.
   const resultClip = "/public/sounds/win.wav";
-  const winSounds = {
+  const defaultWinSounds = {
     jackpot: makeSound(resultClip),
     bigwin: makeSound(resultClip),
     win: makeSound(resultClip),
-    lose: makeSound(resultClip),
+    lose: makeSound("/public/sounds/lose.wav"),
   };
+  let winSounds = { ...defaultWinSounds };
 
   const RESULT_FADE_MS = 400;
   const RESULT_MIN_HOLD_MS = 250;
@@ -51,6 +51,27 @@
     }
 
     return trimmed.replace(/\.wav$/i, "");
+  }
+
+  function normalizeSoundSrc(value) {
+    if (typeof value !== "string") {
+      return "";
+    }
+
+    const trimmed = value.trim();
+    if (!trimmed) {
+      return "";
+    }
+
+    if (trimmed.startsWith("/")) {
+      return trimmed;
+    }
+
+    if (/^https?:\/\//i.test(trimmed)) {
+      return trimmed;
+    }
+
+    return "/public/sounds/" + trimmed;
   }
 
   function showUnlockOverlay() {
@@ -130,6 +151,26 @@
     // Plays each time a reel comes to a complete stop. Calls overlap by design.
     playReelStop() {
       thunk.play();
+    },
+    // Optionally override result clips by win key using reels.json data.
+    // Example: { jackpot: "horse.wav" }
+    configureWinSounds(soundFiles) {
+      winSounds = { ...defaultWinSounds };
+
+      if (!soundFiles || typeof soundFiles !== "object") {
+        return;
+      }
+
+      Object.keys(soundFiles).forEach((key) => {
+        const normalizedKey = normalizeSoundKey(key);
+        const src = normalizeSoundSrc(soundFiles[key]);
+
+        if (!normalizedKey || !src) {
+          return;
+        }
+
+        winSounds[normalizedKey] = makeSound(src);
+      });
     },
     // Plays a result sound by key ("jackpot" | "bigwin" | "win" | "lose").
     // Call when all reels have fully stopped.
