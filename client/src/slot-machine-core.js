@@ -251,7 +251,7 @@
     const minForward = typeof config.minForward === "number" ? config.minForward : H * 6;
     const stopGapMs = typeof config.stopGapMs === "number" ? config.stopGapMs : 350;
     // Target stop duration in ms — every reel will stop in approximately this time.
-    const TARGET_STOP_DURATION_MS = 900;
+    const TARGET_STOP_DURATION_MS = 200;
     const onSpinStart = typeof config.onSpinStart === "function" ? config.onSpinStart : null;
     const onReelStopped = typeof config.onReelStopped === "function" ? config.onReelStopped : null;
     const onResult = typeof config.onResult === "function" ? config.onResult : null;
