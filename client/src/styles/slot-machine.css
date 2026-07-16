@@ -37,6 +37,7 @@ body.admin-page {
   background: #fff;
   color: #111;
   text-align: center;
+  padding: 0;
 }
 
 .machine {
@@ -54,15 +55,24 @@ body.display-page .machine {
 
 body.admin-page .machine {
   gap: 0;
-  margin: 20px 0 40px;
+  margin: 12px 0 20px;
 }
 
 body.admin-page .controls {
-  margin-top: 30px;
+  width: 100%;
+  margin: 0 0 14px;
 }
 
 body.admin-page .controls:first-of-type {
-  margin-bottom: 40px;
+  display: flex;
+  flex-direction: row;
+  gap: 12px;
+  padding: 0 12px;
+  margin-bottom: 16px;
+}
+
+body.admin-page .controls:first-of-type button {
+  flex: 1 1 0;
 }
 
 .reel {
@@ -128,21 +138,20 @@ body.display-page .symbol-img {
 
 .controls button,
 .controls input {
-  margin: 5px;
-  padding: 8px;
-  /* width: 60px; */
+  margin: 0;
+  padding: 14px 16px;
   text-align: center;
 }
 
 #startBtn,
 #stopBtn {
-  width: 132px;
-  height: 132px;
-  border-radius: 50%;
+  width: auto;
+  height: 72px;
+  border-radius: 18px;
   border: 0;
   color: #fff;
   font-weight: 800;
-  font-size: 1.2rem;
+  font-size: 1.05rem;
   text-transform: uppercase;
   letter-spacing: 0.08em;
   line-height: 1;
@@ -167,24 +176,26 @@ body.display-page .symbol-img {
 }
 
 .scenario-buttons {
-  width: min(560px, 92vw);
-  margin: 0 auto;
+  width: 100%;
+  margin: 0;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 12px;
 }
 
 .scenario-btn {
   width: 100%;
-  min-height: 64px;
+  min-height: 76px;
   border: 0;
-  border-radius: 10px;
+  border-radius: 18px;
   color: #111;
   font-weight: 700;
   display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 10px 14px;
+  flex-direction: column;
+  justify-content: center;
+  align-items: stretch;
+  gap: 10px;
+  padding: 14px 16px;
   cursor: pointer;
 }
 
@@ -210,35 +221,37 @@ body.display-page .symbol-img {
 }
 
 .scenario-title {
-  font-size: 1rem;
+  font-size: 1.05rem;
   letter-spacing: 0.3px;
 }
 
 .scenario-symbols {
-  display: inline-flex;
+  display: flex;
+  width: 100%;
   gap: 8px;
   align-items: center;
+  flex-wrap: wrap;
 }
 
 .scenario-symbol-token {
-  min-width: 36px;
-  min-height: 36px;
+  min-width: 42px;
+  min-height: 42px;
   background: rgba(0, 0, 0, 0.15);
-  border-radius: 8px;
+  border-radius: 10px;
   display: inline-flex;
   justify-content: center;
   align-items: center;
 }
 
 .scenario-symbol-img {
-  width: 24px;
-  height: 24px;
+  width: 28px;
+  height: 28px;
   object-fit: contain;
   display: block;
 }
 
 .scenario-symbol-text {
-  font-size: 1.35rem;
+  font-size: 1.5rem;
   line-height: 1;
 }
 
@@ -278,4 +291,95 @@ body.admin-page .legend {
   font-size: 0.75rem;
   opacity: 0.4;
   margin-top: 4px;
+}
+
+@media (min-width: 720px) {
+  body.admin-page {
+    padding: 0;
+  }
+
+  body.admin-page .machine {
+    margin: 20px 0 32px;
+  }
+
+  body.admin-page .controls {
+    width: 100%;
+  }
+
+  #startBtn,
+  #stopBtn {
+    width: 132px;
+    height: 132px;
+    border-radius: 50%;
+    font-size: 1.2rem;
+  }
+
+  .controls button,
+  .controls input {
+    width: auto;
+  }
+
+  .scenario-buttons {
+    width: 100%;
+  }
+
+  .scenario-btn {
+    min-height: 64px;
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    border-radius: 12px;
+  }
+
+  .scenario-symbols {
+    width: auto;
+    justify-content: flex-end;
+    flex-wrap: nowrap;
+  }
+
+  .scenario-title {
+    font-size: 1rem;
+  }
+
+  .scenario-symbol-token {
+    min-width: 36px;
+    min-height: 36px;
+    border-radius: 8px;
+  }
+
+  .scenario-symbol-img {
+    width: 24px;
+    height: 24px;
+  }
+
+  .scenario-symbol-text {
+    font-size: 1.35rem;
+  }
+}
+
+.scenario-btn {
+  height: 200px;
+}
+
+.scenario-title {
+  font-size: 100px;
+}
+
+#startBtn, #stopBtn {
+  width: 400px;
+  border-radius: 10px;
+  font-size: 50px;
+  margin-top: 30px;
+  margin-bottom: 40px;
+}
+
+#startBtn {
+  float: left;
+  margin-left: 30px;
+}
+
+#stopBtn {
+  float: right;
+  margin-right: 30px;
 }

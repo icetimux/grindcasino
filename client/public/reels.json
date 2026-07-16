@@ -27,7 +27,7 @@
       }
     },
 
-        "casino": {
+      "casino": {
       "name": "classic",
       "symbols": [
         { "id": 1, "label": "Cherry", "glyph": "🍒", "image": "/public/img/cherry.png" },

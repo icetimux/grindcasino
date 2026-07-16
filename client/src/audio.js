@@ -25,15 +25,33 @@
   const thunk = makeSound("/public/sounds/thunk.wav");
 
   // Result sounds, keyed to match reels.json winRules sound keys.
+  // This project currently ships a single result clip; all keys map to win.wav.
+  const resultClip = "/public/sounds/win.wav";
   const winSounds = {
-    jackpot: makeSound("/public/sounds/jackpot.wav"),
-    bigwin: makeSound("/public/sounds/bigwin.wav"),
-    win: makeSound("/public/sounds/win.wav"),
-    lose: makeSound("/public/sounds/lose.wav"),
+    jackpot: makeSound(resultClip),
+    bigwin: makeSound(resultClip),
+    win: makeSound(resultClip),
+    lose: makeSound(resultClip),
   };
+
+  const RESULT_FADE_MS = 400;
+  const RESULT_MIN_HOLD_MS = 250;
 
   let unlocked = false;
   let spinId = null;
+
+  function normalizeSoundKey(value) {
+    if (typeof value !== "string") {
+      return "";
+    }
+
+    const trimmed = value.trim().toLowerCase();
+    if (!trimmed) {
+      return "";
+    }
+
+    return trimmed.replace(/\.wav$/i, "");
+  }
 
   function showUnlockOverlay() {
     if (typeof document === "undefined" || !document.body) {
@@ -116,9 +134,28 @@
     // Plays a result sound by key ("jackpot" | "bigwin" | "win" | "lose").
     // Call when all reels have fully stopped.
     playWin(key) {
-      const sound = winSounds[key];
+      const sound = winSounds[normalizeSoundKey(key)] || winSounds.win;
       if (sound) {
-        sound.play();
+        const id = sound.play();
+
+        if (!HowlCtor || id === null || id === undefined) {
+          return;
+        }
+
+        sound.loop(false, id);
+        sound.volume(1, id);
+
+        const durationMs = Math.max(0, sound.duration(id) * 1000);
+        const fadeMs = Math.min(RESULT_FADE_MS, Math.max(120, Math.round(durationMs * 0.45)));
+        const fadeDelay = durationMs > 0
+          ? Math.max(RESULT_MIN_HOLD_MS, Math.round(durationMs - fadeMs))
+          : 700;
+
+        setTimeout(() => {
+          const fromVolume = sound.volume(id);
+          sound.fade(fromVolume, 0, fadeMs, id);
+          setTimeout(() => sound.stop(id), fadeMs + 30);
+        }, fadeDelay);
       }
     },
     // Fades the spinning loop to silence over durationMs, then stops it.

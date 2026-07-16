@@ -50,11 +50,24 @@
   const scenarioButtons = [];
 
   const SCENARIOS = [
-    { sound: "jackpot", color: "green", label: "Jackpot" },
-    { sound: "bigwin", color: "yellow", label: "High Win" },
-    { sound: "win", color: "orange", label: "Mid Win" },
-    { sound: "lose", color: "red", label: "Lose" },
+    { sound: "jackpot", color: "green", label: "JACKPOT" },
+    { sound: "bigwin", color: "yellow", label: "HIGH WIN" },
+    { sound: "win", color: "orange", label: "MID WIN" },
+    { sound: "lose", color: "red", label: "WIN" },
   ];
+
+  function normalizeSoundKey(value) {
+    if (typeof value !== "string") {
+      return "";
+    }
+
+    const trimmed = value.trim().toLowerCase();
+    if (!trimmed) {
+      return "";
+    }
+
+    return trimmed.replace(/\.wav$/i, "");
+  }
 
   let startRequested = false;
   let remoteSpinning = false;
@@ -82,7 +95,10 @@
 
     rules.forEach((rule) => {
       if (rule && rule.sound && Array.isArray(rule.symbols)) {
-        ruleBySound[rule.sound] = rule.symbols.slice();
+        const key = normalizeSoundKey(rule.sound);
+        if (key) {
+          ruleBySound[key] = rule.symbols.slice();
+        }
       }
     });
 
@@ -251,7 +267,7 @@
   }
 
   function forceStop(symbolNums) {
-    if (remoteSpinning) {
+    if (remoteSpinning && Array.isArray(symbolNums) && symbolNums.length >= 3) {
       wsClient.send({ type: "spin:force", symbolNums });
     }
   }

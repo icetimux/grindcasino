@@ -210,9 +210,22 @@
     return occurrences && occurrences.length > 0 ? occurrences[0] : 0;
   }
 
+  function normalizeSoundKey(value) {
+    if (typeof value !== "string") {
+      return null;
+    }
+
+    const trimmed = value.trim().toLowerCase();
+    if (!trimmed) {
+      return null;
+    }
+
+    return trimmed.replace(/\.wav$/i, "");
+  }
+
   // Maps a final result (3 landed symbol ids) to a win-sound key using the
-  // active setup's optional winRules. Returns the matching rule's sound, else
-  // the configured default, else null.
+  // active setup's optional winRules. Returns the matching rule's sound;
+  // returns null when no rule matches so no result sound is played.
   function resolveWinSound(symbolIds) {
     const winRules = activeSetup && activeSetup.winRules ? activeSetup.winRules : null;
     if (!winRules) {
@@ -224,11 +237,11 @@
 
     for (const rule of rules) {
       if (Array.isArray(rule.symbols) && rule.symbols.slice().sort((a, b) => a - b).join(",") === target) {
-        return rule.sound || null;
+        return normalizeSoundKey(rule.sound);
       }
     }
 
-    return winRules.default || null;
+    return null;
   }
 
   function createReel() {
