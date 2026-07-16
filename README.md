@@ -109,7 +109,7 @@ These are the main runtime flags supported by the server:
 	- Default: `1200`
 - `SPIN_STATE_TIMEOUT_MS`
 	- Spin duration. When it elapses with no admin stop/force, the server auto-broadcasts a `spin:stop` (with a random result) so display clients halt on their own.
-	- Default: `4000`
+	- Default: `600000` (10 minutes)
 - `SPIN_COOLDOWN_MS`
 	- Cooldown period after `spin:stop` or `spin:force` before the server accepts a new start.
 	- Default: `3000`

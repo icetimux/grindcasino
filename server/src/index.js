@@ -11,7 +11,7 @@ const { createSpinStartEvent, createSpinStopEvent, MESSAGE_TYPES, normalizeMessa
 const PORT = Number.parseInt(process.env.PORT || "8080", 10);
 const CLIENT_ROOT = path.resolve(__dirname, "../../client");
 const IMPACT_DEBOUNCE_MS = Number.parseInt(process.env.IMPACT_DEBOUNCE_MS || "1200", 10);
-const SPIN_STATE_TIMEOUT_MS = Number.parseInt(process.env.SPIN_STATE_TIMEOUT_MS || "120000", 10);
+const SPIN_STATE_TIMEOUT_MS = Number.parseInt(process.env.SPIN_STATE_TIMEOUT_MS || "600000", 10);
 const SPIN_COOLDOWN_MS = Number.parseInt(process.env.SPIN_COOLDOWN_MS || "3000", 10);
 const IMPACT_MIN_INTENSITY = Number.parseInt(process.env.IMPACT_MIN_INTENSITY || "150", 10);
 const IMPACT_MAX_INTENSITY = Number.parseInt(process.env.IMPACT_MAX_INTENSITY || "4095", 10);
